@@ -59,6 +59,19 @@
   .edit button { padding:7px 12px; }
   .copy { display:block; margin:6px auto 0; padding:3px 10px; font-size:12px; font-weight:500; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:8px; }
   .copy:hover { color:var(--text); }
+  .day { display:flex; flex-direction:column; }
+  .add { margin-top:auto; align-self:center; width:32px; height:32px; padding:0; border-radius:50%; font-size:20px; line-height:1; font-weight:500; background:transparent; color:var(--muted); border:1px dashed var(--line); }
+  .add:hover { color:var(--accent); border-color:var(--accent); }
+  .chips { padding-bottom:8px; }
+  dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--text); padding:20px; width:min(360px, calc(100vw - 32px)); }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog form { display:block; margin:0; }
+  dialog h2 { font-size:18px; margin:0 0 2px; }
+  dialog .sub { color:var(--muted); font-size:14px; margin-bottom:14px; }
+  dialog label { display:block; font-size:13px; color:var(--muted); margin-bottom:12px; }
+  dialog label input { display:block; width:100%; margin-top:4px; }
+  dialog .pair { display:flex; gap:10px; } dialog .pair label { flex:1; }
+  dialog .btns { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
   .none { text-align:center; color:var(--muted); font-size:13px; padding-top:8px; }
   .legend { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 14px; }
   .legend .row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
@@ -99,6 +112,19 @@
     <div class="legend" id="legend"></div>
   </section>
 </main>
+<dialog id="addDlg">
+  <form id="addForm" autocomplete="off">
+    <h2>Add time manually</h2>
+    <div class="sub" id="addDate"></div>
+    <label>Task name<input type="text" id="addName" list="taskNames" maxlength="100" required></label>
+    <datalist id="taskNames"></datalist>
+    <div class="pair">
+      <label>Hours<input type="number" id="addH" min="0" max="23" step="1" value="0" required></label>
+      <label>Minutes<input type="number" id="addM" min="0" max="59" step="1" value="0" required></label>
+    </div>
+    <div class="btns"><button type="button" class="ghost" id="addCancel">Cancel</button><button type="submit">Add</button></div>
+  </form>
+</dialog>
 <script>
 const KEY = 'task-timer-v2', OLD_KEY = 'task-timer-v1';
 
@@ -218,6 +244,28 @@ function renderTimer() {
 
 /* ---------- week view ---------- */
 let copyText = [];
+let addDay = null;
+$('cal').addEventListener('click', e => {
+  const b = e.target.closest('[data-add]'); if (!b) return;
+  addDay = +b.dataset.add;
+  $('addDate').textContent = new Date(addDay).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('taskNames').innerHTML = state.tasks.map(t => `<option value="${esc(t.name)}">`).join('');
+  $('addName').value = ''; $('addH').value = 0; $('addM').value = 0; $('addM').setCustomValidity('');
+  $('addDlg').showModal(); $('addName').focus();
+});
+$('addCancel').onclick = () => $('addDlg').close();
+$('addM').oninput = $('addH').oninput = () => $('addM').setCustomValidity('');
+$('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('addName').value.trim(), mins = (+$('addH').value) * 60 + (+$('addM').value);
+  if (!name) return;
+  if (mins <= 0) { $('addM').setCustomValidity('Enter a time greater than zero.'); $('addM').reportValidity(); return; }
+  let t = state.tasks.find(t => t.name.toLowerCase() === name.toLowerCase());
+  if (!t) { t = { id: uid(), name, base: 0 }; state.tasks.unshift(t); }
+  // logged as a session starting at midnight of the chosen day (max 23h59m, so it stays within that day)
+  state.sessions.push({ id: uid(), taskId: t.id, start: addDay, end: addDay + mins * 6e4, manual: true });
+  save(); $('addDlg').close(); render();
+});
 // hours rounded up to the nearest tenth, one decimal place, whole hours shown without a decimal
 const hoursText = ms => { const tenths = Math.ceil(ms / 36e4); return tenths % 10 ? (tenths / 10).toFixed(1) : String(tenths / 10); };
 async function copyToClipboard(text) {
@@ -265,10 +313,10 @@ function renderWeek() {
     const tot = rows.reduce((a, [, v]) => a + v, 0);
     return `<div class="day ${d.toDateString() === todayStr ? 'today' : ''}">
       <div class="dayhead"><span>${d.toLocaleDateString(undefined, { weekday: 'short' })}<b>${d.getDate()}</b></span><span class="tot">${tot ? fmtShort(tot) : ''}</span>${rows.length ? `<button class="copy" data-copy="${i}" title="Copy tasks and hours to clipboard">Copy</button>` : ''}</div>` +
-      (rows.length ? rows.map(([id, v]) => {
+      '<div class="chips">' + (rows.length ? rows.map(([id, v]) => {
         const nm = names[id] || '(deleted)';
         return `<div class="chip ${r && r.taskId === id && d.toDateString() === todayStr ? 'run' : ''}" style="background:${colorOf(id)};color:${inkOf(colorOf(id))}" title="${esc(nm)}"><div class="cn">${esc(nm)}</div><div class="ct">${fmtShort(v)}</div></div>`;
-      }).join('') : '<div class="none">\u2013</div>') + '</div>';
+      }).join('') : '<div class="none">\u2013</div>') + `</div><button class="add" data-add="${new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()}" title="Add time manually" aria-label="Add time manually for ${esc(d.toLocaleDateString(undefined, { weekday: 'long' }))}">+</button></div>`;
   }).join('');
 
   const rows = Object.entries(byTask).sort((a, b) => b[1] - a[1]);
