@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Timer</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec; --accent:#2f6fed; --stop:#d64545; --live:#e8f7ee; --livebar:#22a45d; --today:#eef3ff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171f; --card:#1d222d; --text:#e8ebf2; --muted:#8e97ab; --line:#2c3342; --accent:#5b8cff; --stop:#ef6b6b; --live:#17301f; --livebar:#3ecf7d; --today:#202a40; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 48px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  h1 { font-size:22px; margin:0; }
+  .tabs { display:flex; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:3px; }
+  .tabs button { background:transparent; color:var(--muted); padding:6px 16px; }
+  .tabs button.on { background:var(--accent); color:#fff; }
+  form { display:flex; gap:8px; margin-bottom:20px; }
+  input { flex:1; min-width:0; padding:12px 14px; font-size:16px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); }
+  input:focus { outline:2px solid var(--accent); border-color:transparent; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:10px; padding:10px 16px; background:var(--accent); color:#fff; font-weight:600; }
+  button.stop { background:var(--stop); }
+  button.ghost { background:transparent; color:var(--muted); padding:6px 10px; font-weight:500; }
+  button.ghost:hover { color:var(--text); }
+  button.outline { background:var(--card); color:var(--text); border:1px solid var(--line); padding:6px 12px; font-weight:500; }
+  #timerView, #weekView { max-width:640px; }
+  #weekView { max-width:none; }
+  .task { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:12px; }
+  .task.live { background:var(--live); border-left-color:var(--livebar); }
+  .dot { width:10px; height:10px; border-radius:50%; flex:none; }
+  .info { flex:1; min-width:0; }
+  .name { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .time { font-variant-numeric:tabular-nums; font-size:20px; color:var(--muted); }
+  .live .time { color:var(--text); }
+  .actions { display:flex; align-items:center; gap:2px; }
+  .summary { display:flex; justify-content:space-between; align-items:center; color:var(--muted); margin:20px 2px 0; font-size:14px; }
+  .empty { text-align:center; color:var(--muted); padding:32px 0; }
+
+  .weekbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .weekbar .label { font-weight:600; flex:1; text-align:center; min-width:150px; }
+  .cal { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:8px; }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px; min-height:140px; }
+  .day.today { background:var(--today); border-color:var(--accent); }
+  .dayhead { text-align:center; color:var(--muted); font-size:13px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
+  .dayhead b { display:block; color:var(--text); font-size:15px; }
+  .dayhead .tot { font-variant-numeric:tabular-nums; }
+  .chip { border-radius:8px; padding:6px 8px; margin-bottom:6px; color:#fff; font-size:13px; line-height:1.25; }
+  .chip.run { outline:2px solid var(--livebar); outline-offset:1px; }
+  .chip .cn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .chip .ct { font-variant-numeric:tabular-nums; opacity:.9; }
+  .none { text-align:center; color:var(--muted); font-size:13px; padding-top:8px; }
+  .legend { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 14px; }
+  .legend .row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .legend .row:last-child { border-bottom:0; }
+  .legend .row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .legend .row .t { font-variant-numeric:tabular-nums; color:var(--muted); }
+  @media (max-width:760px) { .cal { grid-template-columns:1fr; } .day { min-height:0; } .dayhead { text-align:left; display:flex; justify-content:space-between; align-items:baseline; } .dayhead b { display:inline; margin-left:6px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Task Timer</h1>
+    <div class="tabs">
+      <button id="tabTimer" class="on">Timer</button>
+      <button id="tabWeek">Week</button>
+    </div>
+  </header>
+
+  <section id="timerView">
+    <form id="form">
+      <input id="name" placeholder="What are you working on?" autocomplete="off" maxlength="100" required>
+      <button type="submit">Start</button>
+    </form>
+    <div id="list"></div>
+    <div class="summary"><span id="total"></span><button class="ghost" id="clear">Clear all</button></div>
+  </section>
+
+  <section id="weekView" hidden>
+    <div class="weekbar">
+      <button class="outline" id="prev">‹ Prev</button>
+      <div class="label" id="weekLabel"></div>
+      <button class="outline" id="next">Next ›</button>
+      <button class="outline" id="today">This week</button>
+    </div>
+    <div class="cal" id="cal"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+</main>
+<script>
+const KEY = 'task-timer-v2', OLD_KEY = 'task-timer-v1';
+
+// state: tasks [{id,name,base}] (base = time carried over from v1, no timestamps)
+//        sessions [{id,taskId,start,end|null}] (end null = running)
+let state = { tasks: [], sessions: [] };
+try {
+  const raw = localStorage.getItem(KEY);
+  if (raw) state = JSON.parse(raw);
+  else {
+    const old = JSON.parse(localStorage.getItem(OLD_KEY) || '[]');
+    state.tasks = old.map(t => ({ id: t.id, name: t.name, base: t.total }));
+    old.filter(t => t.startedAt).forEach(t => state.sessions.push({ id: uid(), taskId: t.id, start: t.startedAt, end: null }));
+  }
+} catch (e) {}
+
+function uid() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2); }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+const running = () => state.sessions.find(s => s.end == null);
+const taskTime = t => t.base + state.sessions.filter(s => s.taskId === t.id).reduce((a, s) => a + (s.end ?? Date.now()) - s.start, 0);
+const fmt = ms => {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return [h, m, s % 60].map(n => String(n).padStart(2, '0')).join(':');
+};
+const fmtShort = ms => { const m = Math.round(ms / 6e4); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; };
+const colorOf = id => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `hsl(${h % 360} 55% 42%)`; };
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
+
+function stopAll() { const r = running(); if (r) r.end = Date.now(); }
+function start(id) {
+  stopAll();                       // only one timer may run at a time
+  state.sessions.push({ id: uid(), taskId: id, start: Date.now(), end: null });
+  save(); render();
+}
+function stop() { stopAll(); save(); render(); }
+
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('name').value.trim();
+  if (!name) return;
+  let t = state.tasks.find(t => t.name.toLowerCase() === name.toLowerCase());
+  if (!t) { t = { id: uid(), name, base: 0 }; state.tasks.unshift(t); }
+  $('name').value = '';
+  start(t.id);
+});
+
+$('list').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = b.dataset.id;
+  if (b.dataset.act === 'start') start(id);
+  if (b.dataset.act === 'stop') stop();
+  if (b.dataset.act === 'del') { state.tasks = state.tasks.filter(t => t.id !== id); state.sessions = state.sessions.filter(s => s.taskId !== id); save(); render(); }
+  if (b.dataset.act === 'reset') {
+    const t = state.tasks.find(t => t.id === id), r = running();
+    t.base = 0; state.sessions = state.sessions.filter(s => s.taskId !== id);
+    if (r && r.taskId === id) state.sessions.push({ id: uid(), taskId: id, start: Date.now(), end: null });
+    save(); render();
+  }
+});
+
+$('clear').addEventListener('click', () => {
+  if (state.tasks.length && confirm('Delete all tasks, recorded time and calendar history?')) { state = { tasks: [], sessions: [] }; save(); render(); }
+});
+
+/* ---------- tabs & week navigation ---------- */
+let view = 'timer';
+let weekStart = mondayOf(new Date());
+function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function setView(v) {
+  view = v;
+  $('timerView').hidden = v !== 'timer'; $('weekView').hidden = v !== 'week';
+  $('tabTimer').classList.toggle('on', v === 'timer'); $('tabWeek').classList.toggle('on', v === 'week');
+  render();
+}
+$('tabTimer').onclick = () => setView('timer');
+$('tabWeek').onclick = () => setView('week');
+$('prev').onclick = () => { weekStart.setDate(weekStart.getDate() - 7); renderWeek(); };
+$('next').onclick = () => { weekStart.setDate(weekStart.getDate() + 7); renderWeek(); };
+$('today').onclick = () => { weekStart = mondayOf(new Date()); renderWeek(); };
+
+/* ---------- timer view ---------- */
+function renderTimer() {
+  const r = running();
+  $('list').innerHTML = state.tasks.length ? state.tasks.map(t => {
+    const live = r && r.taskId === t.id;
+    return `<div class="task ${live ? 'live' : ''}">
+      <span class="dot" style="background:${colorOf(t.id)}"></span>
+      <div class="info"><div class="name" title="${esc(t.name)}">${esc(t.name)}</div><div class="time" data-id="${t.id}">${fmt(taskTime(t))}</div></div>
+      <div class="actions">
+        <button class="ghost" data-act="reset" data-id="${t.id}" title="Reset time">Reset</button>
+        <button class="ghost" data-act="del" data-id="${t.id}" title="Delete task">✕</button>
+        ${live ? `<button class="stop" data-act="stop">Stop</button>` : `<button data-act="start" data-id="${t.id}">Start</button>`}
+      </div></div>`;
+  }).join('') : '<div class="empty">No tasks yet. Type a name above and press Start.</div>';
+  tick();
+}
+
+/* ---------- week view ---------- */
+function renderWeek() {
+  const days = [...Array(7)].map((_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+  const bounds = days.map(d => { const b = new Date(d); b.setDate(b.getDate() + 1); return [d.getTime(), b.getTime()]; });
+  const now = Date.now(), byTask = {}, perDay = days.map(() => ({}));
+  const names = Object.fromEntries(state.tasks.map(t => [t.id, t.name]));
+  const r = running();
+
+  // sum time per task per day (sessions crossing midnight are split)
+  state.sessions.forEach(s => {
+    const end = s.end ?? now;
+    bounds.forEach(([a, b], i) => {
+      const ms = Math.min(end, b) - Math.max(s.start, a);
+      if (ms > 0) { perDay[i][s.taskId] = (perDay[i][s.taskId] || 0) + ms; byTask[s.taskId] = (byTask[s.taskId] || 0) + ms; }
+    });
+  });
+
+  const f = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  $('weekLabel').textContent = `${f(days[0])} \u2013 ${f(days[6])}, ${days[6].getFullYear()}`;
+  const todayStr = new Date().toDateString();
+
+  $('cal').innerHTML = days.map((d, i) => {
+    const rows = Object.entries(perDay[i]).sort((a, b) => b[1] - a[1]);
+    const tot = rows.reduce((a, [, v]) => a + v, 0);
+    return `<div class="day ${d.toDateString() === todayStr ? 'today' : ''}">
+      <div class="dayhead"><span>${d.toLocaleDateString(undefined, { weekday: 'short' })}<b>${d.getDate()}</b></span><span class="tot">${tot ? fmtShort(tot) : ''}</span></div>` +
+      (rows.length ? rows.map(([id, v]) => {
+        const nm = names[id] || '(deleted)';
+        return `<div class="chip ${r && r.taskId === id && d.toDateString() === todayStr ? 'run' : ''}" style="background:${colorOf(id)}" title="${esc(nm)}"><div class="cn">${esc(nm)}</div><div class="ct">${fmtShort(v)}</div></div>`;
+      }).join('') : '<div class="none">\u2013</div>') + '</div>';
+  }).join('');
+
+  const rows = Object.entries(byTask).sort((a, b) => b[1] - a[1]);
+  const total = rows.reduce((a, [, v]) => a + v, 0);
+  $('legend').innerHTML = rows.length
+    ? rows.map(([id, v]) => `<div class="row"><span class="dot" style="background:${colorOf(id)}"></span><span class="n">${esc(names[id] || '(deleted)')}</span><span class="t">${fmtShort(v)}</span></div>`).join('') +
+      `<div class="row"><span class="n"><b>Week total</b></span><span class="t"><b>${fmtShort(total)}</b></span></div>`
+    : '<div class="empty">No time tracked this week.</div>';
+}
+
+/* ---------- loop ---------- */
+function render() { view === 'timer' ? renderTimer() : renderWeek(); }
+function tick() {
+  let sum = 0;
+  state.tasks.forEach(t => {
+    const v = taskTime(t); sum += v;
+    const el = document.querySelector(`.time[data-id="${t.id}"]`);
+    if (el) el.textContent = fmt(v);
+  });
+  $('total').textContent = state.tasks.length ? 'Total: ' + fmt(sum) : '';
+  const r = running(), t = r && state.tasks.find(t => t.id === r.taskId);
+  document.title = t ? `${fmt(taskTime(t))} · ${t.name}` : 'Task Timer';
+}
+render();
+setInterval(tick, 500);
+setInterval(() => { if (view === 'week' && running()) renderWeek(); }, 15000);
+</script>
+</body>
+</html>
