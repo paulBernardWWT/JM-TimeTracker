@@ -41,6 +41,9 @@
   .weekbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
   .weekbar .label { font-weight:600; flex:1; text-align:center; min-width:150px; }
   .cal { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:8px; }
+  .cal.five { grid-template-columns:repeat(5, minmax(0,1fr)); }
+  .opt input { flex:none; padding:0; }
+  .opt { display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted); cursor:pointer; user-select:none; }
   .day { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px; min-height:140px; }
   .day.today { background:var(--today); border-color:var(--accent); }
   .dayhead { text-align:center; color:var(--muted); font-size:13px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
@@ -54,6 +57,8 @@
   .edit input[type=text] { padding:8px 10px; font-size:15px; flex:1; min-width:120px; }
   .edit input[type=color] { flex:none; width:40px; height:36px; padding:2px; border-radius:8px; cursor:pointer; }
   .edit button { padding:7px 12px; }
+  .copy { display:block; margin:6px auto 0; padding:3px 10px; font-size:12px; font-weight:500; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:8px; }
+  .copy:hover { color:var(--text); }
   .none { text-align:center; color:var(--muted); font-size:13px; padding-top:8px; }
   .legend { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 14px; }
   .legend .row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
@@ -88,6 +93,7 @@
       <div class="label" id="weekLabel"></div>
       <button class="outline" id="next">Next ›</button>
       <button class="outline" id="today">This week</button>
+      <label class="opt"><input type="checkbox" id="weekends"> Show weekends</label>
     </div>
     <div class="cal" id="cal"></div>
     <div class="legend" id="legend"></div>
@@ -167,7 +173,10 @@ $('clear').addEventListener('click', () => {
 });
 
 /* ---------- tabs & week navigation ---------- */
-let view = 'timer', editingId = null;
+let view = 'timer', editingId = null, showWeekends = false;
+try { showWeekends = localStorage.getItem('task-timer-weekends') === '1'; } catch (e) {}
+$('weekends').checked = showWeekends;
+$('weekends').onchange = e => { showWeekends = e.target.checked; try { localStorage.setItem('task-timer-weekends', showWeekends ? '1' : '0'); } catch (e) {} renderWeek(); };
 let weekStart = mondayOf(new Date());
 function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 function setView(v) {
@@ -208,10 +217,27 @@ function renderTimer() {
 }
 
 /* ---------- week view ---------- */
+let copyText = [];
+async function copyToClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove(); return ok;
+}
+$('cal').addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const ok = await copyToClipboard(copyText[+b.dataset.copy] || '');
+  b.textContent = ok ? 'Copied!' : 'Copy failed';
+  setTimeout(() => { if (b.isConnected) b.textContent = 'Copy'; }, 1500);
+});
+
 function renderWeek() {
-  const days = [...Array(7)].map((_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
-  const bounds = days.map(d => { const b = new Date(d); b.setDate(b.getDate() + 1); return [d.getTime(), b.getTime()]; });
-  const now = Date.now(), byTask = {}, perDay = days.map(() => ({}));
+  // always compute all 7 days so totals include the weekend; only the first 5 are shown unless weekends are on
+  const allDays = [...Array(7)].map((_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+  const days = allDays.slice(0, showWeekends ? 7 : 5);
+  const bounds = allDays.map(d => { const b = new Date(d); b.setDate(b.getDate() + 1); return [d.getTime(), b.getTime()]; });
+  const now = Date.now(), byTask = {}, perDay = allDays.map(() => ({}));
   const names = Object.fromEntries(state.tasks.map(t => [t.id, t.name]));
   const r = running();
 
@@ -224,15 +250,19 @@ function renderWeek() {
     });
   });
 
+  // clipboard text per day: "<task name> - <hours>", one task per line
+  copyText = perDay.map(m => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([id, v]) => `${names[id] || '(deleted)'} - ${+(v / 36e5).toFixed(2)}`).join('\n'));
+
   const f = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  $('weekLabel').textContent = `${f(days[0])} \u2013 ${f(days[6])}, ${days[6].getFullYear()}`;
+  $('weekLabel').textContent = `${f(days[0])} \u2013 ${f(days[days.length - 1])}, ${days[days.length - 1].getFullYear()}`;
   const todayStr = new Date().toDateString();
 
+  $('cal').classList.toggle('five', !showWeekends);
   $('cal').innerHTML = days.map((d, i) => {
     const rows = Object.entries(perDay[i]).sort((a, b) => b[1] - a[1]);
     const tot = rows.reduce((a, [, v]) => a + v, 0);
     return `<div class="day ${d.toDateString() === todayStr ? 'today' : ''}">
-      <div class="dayhead"><span>${d.toLocaleDateString(undefined, { weekday: 'short' })}<b>${d.getDate()}</b></span><span class="tot">${tot ? fmtShort(tot) : ''}</span></div>` +
+      <div class="dayhead"><span>${d.toLocaleDateString(undefined, { weekday: 'short' })}<b>${d.getDate()}</b></span><span class="tot">${tot ? fmtShort(tot) : ''}</span>${rows.length ? `<button class="copy" data-copy="${i}" title="Copy tasks and hours to clipboard">Copy</button>` : ''}</div>` +
       (rows.length ? rows.map(([id, v]) => {
         const nm = names[id] || '(deleted)';
         return `<div class="chip ${r && r.taskId === id && d.toDateString() === todayStr ? 'run' : ''}" style="background:${colorOf(id)};color:${inkOf(colorOf(id))}" title="${esc(nm)}"><div class="cn">${esc(nm)}</div><div class="ct">${fmtShort(v)}</div></div>`;
