@@ -65,7 +65,7 @@
   .legend .row:last-child { border-bottom:0; }
   .legend .row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .legend .row .t { font-variant-numeric:tabular-nums; color:var(--muted); }
-  @media (max-width:760px) { .cal { grid-template-columns:1fr; } .day { min-height:0; } .dayhead { text-align:left; display:flex; justify-content:space-between; align-items:baseline; } .dayhead b { display:inline; margin-left:6px; } }
+  @media (max-width:760px) { .cal { grid-template-columns:1fr; } .day { min-height:0; } .dayhead { text-align:left; display:grid; grid-template-columns:1fr auto; align-items:baseline; } .dayhead .tot { grid-column:2; grid-row:1; } .copy { grid-column:1; grid-row:2; justify-self:start; margin:6px 0 0; } .dayhead b { display:inline; margin-left:6px; } }
 </style>
 </head>
 <body>
@@ -218,6 +218,8 @@ function renderTimer() {
 
 /* ---------- week view ---------- */
 let copyText = [];
+// hours rounded up to the nearest tenth, one decimal place, whole hours shown without a decimal
+const hoursText = ms => { const tenths = Math.ceil(ms / 36e4); return tenths % 10 ? (tenths / 10).toFixed(1) : String(tenths / 10); };
 async function copyToClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
   const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
@@ -251,7 +253,7 @@ function renderWeek() {
   });
 
   // clipboard text per day: "<task name> - <hours>", one task per line
-  copyText = perDay.map(m => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([id, v]) => `${names[id] || '(deleted)'} - ${+(v / 36e5).toFixed(2)}`).join('\n'));
+  copyText = perDay.map(m => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([id, v]) => `${names[id] || '(deleted)'} - ${hoursText(v)}`).join('\n'));
 
   const f = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   $('weekLabel').textContent = `${f(days[0])} \u2013 ${f(days[days.length - 1])}, ${days[days.length - 1].getFullYear()}`;
