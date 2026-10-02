@@ -50,6 +50,10 @@
   .chip.run { outline:2px solid var(--livebar); outline-offset:1px; }
   .chip .cn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
   .chip .ct { font-variant-numeric:tabular-nums; opacity:.9; }
+  .edit { display:flex; align-items:center; gap:8px; flex:1; min-width:0; flex-wrap:wrap; }
+  .edit input[type=text] { padding:8px 10px; font-size:15px; flex:1; min-width:120px; }
+  .edit input[type=color] { flex:none; width:40px; height:36px; padding:2px; border-radius:8px; cursor:pointer; }
+  .edit button { padding:7px 12px; }
   .none { text-align:center; color:var(--muted); font-size:13px; padding-top:8px; }
   .legend { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 14px; }
   .legend .row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
@@ -114,7 +118,9 @@ const fmt = ms => {
   return [h, m, s % 60].map(n => String(n).padStart(2, '0')).join(':');
 };
 const fmtShort = ms => { const m = Math.round(ms / 6e4); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; };
-const colorOf = id => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `hsl(${h % 360} 55% 42%)`; };
+const hslHex = (h, s, l) => { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join(''); };
+const colorOf = id => { const t = state.tasks.find(t => t.id === id); if (t && t.color) return t.color; let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return hslHex(h % 360, 55, 42); };
+const inkOf = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111' : '#fff'; };
 const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = id => document.getElementById(id);
 
@@ -141,13 +147,19 @@ $('list').addEventListener('click', e => {
   const id = b.dataset.id;
   if (b.dataset.act === 'start') start(id);
   if (b.dataset.act === 'stop') stop();
+  if (b.dataset.act === 'edit') { editingId = id; render(); }
+  if (b.dataset.act === 'cancel') { editingId = null; render(); }
   if (b.dataset.act === 'del') { state.tasks = state.tasks.filter(t => t.id !== id); state.sessions = state.sessions.filter(s => s.taskId !== id); save(); render(); }
-  if (b.dataset.act === 'reset') {
-    const t = state.tasks.find(t => t.id === id), r = running();
-    t.base = 0; state.sessions = state.sessions.filter(s => s.taskId !== id);
-    if (r && r.taskId === id) state.sessions.push({ id: uid(), taskId: id, start: Date.now(), end: null });
-    save(); render();
-  }
+});
+
+$('list').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target, t = state.tasks.find(t => t.id === f.dataset.id);
+  const name = f.elements.name.value.trim();
+  if (!name) return;
+  if (state.tasks.some(o => o.id !== t.id && o.name.toLowerCase() === name.toLowerCase())) { alert('Another task already has that name.'); return; }
+  t.name = name; t.color = f.elements.color.value;
+  editingId = null; save(); render();
 });
 
 $('clear').addEventListener('click', () => {
@@ -155,7 +167,7 @@ $('clear').addEventListener('click', () => {
 });
 
 /* ---------- tabs & week navigation ---------- */
-let view = 'timer';
+let view = 'timer', editingId = null;
 let weekStart = mondayOf(new Date());
 function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 function setView(v) {
@@ -175,15 +187,23 @@ function renderTimer() {
   const r = running();
   $('list').innerHTML = state.tasks.length ? state.tasks.map(t => {
     const live = r && r.taskId === t.id;
+    if (t.id === editingId) return `<div class="task" style="border-left-color:${colorOf(t.id)}">
+      <form class="edit" data-id="${t.id}">
+        <input type="color" name="color" value="${colorOf(t.id)}" title="Task color">
+        <input type="text" name="name" value="${esc(t.name)}" maxlength="100" required aria-label="Task name">
+        <button type="submit">Save</button>
+        <button type="button" class="ghost" data-act="cancel">Cancel</button>
+      </form></div>`;
     return `<div class="task ${live ? 'live' : ''}">
       <span class="dot" style="background:${colorOf(t.id)}"></span>
       <div class="info"><div class="name" title="${esc(t.name)}">${esc(t.name)}</div><div class="time" data-id="${t.id}">${fmt(taskTime(t))}</div></div>
       <div class="actions">
-        <button class="ghost" data-act="reset" data-id="${t.id}" title="Reset time">Reset</button>
+        <button class="ghost" data-act="edit" data-id="${t.id}" title="Edit name and color">Edit</button>
         <button class="ghost" data-act="del" data-id="${t.id}" title="Delete task">✕</button>
         ${live ? `<button class="stop" data-act="stop">Stop</button>` : `<button data-act="start" data-id="${t.id}">Start</button>`}
       </div></div>`;
   }).join('') : '<div class="empty">No tasks yet. Type a name above and press Start.</div>';
+  const ed = document.querySelector('.edit input[name=name]'); if (ed && !ed.dataset.focused) { ed.dataset.focused = 1; ed.focus(); ed.select(); }
   tick();
 }
 
@@ -215,7 +235,7 @@ function renderWeek() {
       <div class="dayhead"><span>${d.toLocaleDateString(undefined, { weekday: 'short' })}<b>${d.getDate()}</b></span><span class="tot">${tot ? fmtShort(tot) : ''}</span></div>` +
       (rows.length ? rows.map(([id, v]) => {
         const nm = names[id] || '(deleted)';
-        return `<div class="chip ${r && r.taskId === id && d.toDateString() === todayStr ? 'run' : ''}" style="background:${colorOf(id)}" title="${esc(nm)}"><div class="cn">${esc(nm)}</div><div class="ct">${fmtShort(v)}</div></div>`;
+        return `<div class="chip ${r && r.taskId === id && d.toDateString() === todayStr ? 'run' : ''}" style="background:${colorOf(id)};color:${inkOf(colorOf(id))}" title="${esc(nm)}"><div class="cn">${esc(nm)}</div><div class="ct">${fmtShort(v)}</div></div>`;
       }).join('') : '<div class="none">\u2013</div>') + '</div>';
   }).join('');
 
