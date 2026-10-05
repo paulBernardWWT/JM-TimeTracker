@@ -261,9 +261,9 @@ function renderTimer() {
   renderedDay = ds;
   $('modeToday').classList.toggle('on', today); $('modeTotals').classList.toggle('on', !today);
   $('periodWrap').hidden = today;
-  // Today: tasks with time today. Totals: every task with time in the chosen period, biggest first.
+  // Today: tasks with time today. Totals: every task with time in the chosen period, most recently tracked first.
   const shown = today ? state.tasks.filter(t => worksToday(t, ds))
-                      : state.tasks.filter(t => periodMs(t) > 0).sort((a, b) => periodMs(b) - periodMs(a));
+                      : state.tasks.filter(t => periodMs(t) > 0).sort((a, b) => lastTracked(b) - lastTracked(a));
   $('list').innerHTML = shown.length ? shown.map(t => {
     const live = r && r.taskId === t.id;
     if (t.id === editingId) return `<div class="task" style="border-left-color:${colorOf(t.id)}">
@@ -383,6 +383,8 @@ const periodStart = () => {
   else return null;
   return d.getTime();
 };
+// when the task was last worked on (a running timer counts as now; carried-over time with no dates sorts last)
+const lastTracked = t => state.sessions.reduce((m, s) => s.taskId === t.id ? Math.max(m, s.end ?? Date.now()) : m, 0);
 const periodMs = t => {
   const from = periodStart();
   if (from === null) return taskTime(t);
