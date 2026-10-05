@@ -324,7 +324,7 @@ $('addForm').addEventListener('submit', e => {
   if (!t) { t = { id: uid(), name, base: 0 }; state.tasks.unshift(t); }
   // logged as a session starting at midnight of the chosen day (max 23h59m, so it stays within that day)
   state.sessions.push({ id: uid(), taskId: t.id, start: addDay, end: addDay + mins * 6e4, manual: true });
-  save(); $('addDlg').close(); render();
+  save(); $('addDlg').close(); renderTimer(); renderWeek();   // refresh both views so the Timer tab is current too
 });
 // hours rounded up to the nearest tenth, one decimal place, whole hours shown without a decimal
 const hoursText = ms => { const tenths = Math.ceil(ms / 36e4); return tenths % 10 ? (tenths / 10).toFixed(1) : String(tenths / 10); };
