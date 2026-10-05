@@ -1,0 +1,74 @@
+:root { --bg:#f5f6f8; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e3e6ec; --accent:#2f6fed; --stop:#d64545; --live:#e8f7ee; --livebar:#22a45d; --today:#eef3ff; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14171f; --card:#1d222d; --text:#e8ebf2; --muted:#8e97ab; --line:#2c3342; --accent:#5b8cff; --stop:#ef6b6b; --live:#17301f; --livebar:#3ecf7d; --today:#202a40; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif; }
+main { max-width:960px; margin:0 auto; padding:24px 16px 48px; }
+header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+h1 { font-size:22px; margin:0; }
+.tabs { display:flex; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:3px; }
+.tabs button { background:transparent; color:var(--muted); padding:6px 16px; }
+.tabs.sub { width:max-content; margin-bottom:14px; }
+.period { margin:-4px 0 14px; }
+.period[hidden] { display:none; }
+.period select { padding:6px 10px; font:inherit; font-size:14px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+.tabs button.on { background:var(--accent); color:#fff; }
+form { display:flex; gap:8px; margin-bottom:20px; }
+input { flex:1; min-width:0; padding:12px 14px; font-size:16px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); }
+input:focus { outline:2px solid var(--accent); border-color:transparent; }
+button { font:inherit; cursor:pointer; border:0; border-radius:10px; padding:10px 16px; background:var(--accent); color:#fff; font-weight:600; }
+button.stop { background:var(--stop); }
+button.ghost { background:transparent; color:var(--muted); padding:6px 10px; font-weight:500; }
+button.ghost:hover { color:var(--text); }
+button.outline { background:var(--card); color:var(--text); border:1px solid var(--line); padding:6px 12px; font-weight:500; }
+#timerView, #weekView { max-width:640px; }
+#weekView { max-width:none; }
+.task { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:12px; }
+.task.live { background:var(--live); border-left-color:var(--livebar); }
+.dot { width:10px; height:10px; border-radius:50%; flex:none; }
+.info { flex:1; min-width:0; }
+.name { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.time { font-variant-numeric:tabular-nums; font-size:20px; color:var(--muted); }
+.live .time { color:var(--text); }
+.actions { display:flex; align-items:center; gap:2px; }
+.summary { display:flex; justify-content:space-between; align-items:center; color:var(--muted); margin:20px 2px 0; font-size:14px; }
+.empty { text-align:center; color:var(--muted); padding:32px 0; }
+
+.weekbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.weekbar .label { font-weight:600; flex:1; text-align:center; min-width:150px; }
+.cal { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:8px; }
+.cal.five { grid-template-columns:repeat(5, minmax(0,1fr)); }
+.opt input { flex:none; padding:0; }
+.opt { display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted); cursor:pointer; user-select:none; }
+.day { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px; min-height:140px; }
+.day.today { background:var(--today); border-color:var(--accent); }
+.dayhead { text-align:center; color:var(--muted); font-size:13px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
+.dayhead b { display:block; color:var(--text); font-size:15px; }
+.dayhead .tot { font-variant-numeric:tabular-nums; }
+.chip { border-radius:8px; padding:6px 8px; margin-bottom:6px; color:#fff; font-size:13px; line-height:1.25; }
+.chip.run { outline:2px solid var(--livebar); outline-offset:1px; }
+.chip .cn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.chip .ct { font-variant-numeric:tabular-nums; opacity:.9; }
+.copy { display:block; margin:6px auto 0; padding:3px 10px; font-size:12px; font-weight:500; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:8px; }
+.copy:hover { color:var(--text); }
+.day { display:flex; flex-direction:column; }
+.add { margin-top:auto; align-self:center; width:32px; height:32px; padding:0; border-radius:50%; font-size:20px; line-height:1; font-weight:500; background:transparent; color:var(--muted); border:1px dashed var(--line); }
+.add:hover { color:var(--accent); border-color:var(--accent); }
+.chips { padding-bottom:8px; }
+dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--text); padding:20px; width:min(360px, calc(100vw - 32px)); }
+dialog::backdrop { background:rgba(0,0,0,.45); }
+dialog form { display:block; margin:0; }
+dialog h2 { font-size:18px; margin:0 0 2px; }
+dialog .sub { color:var(--muted); font-size:14px; margin-bottom:14px; }
+dialog label { display:block; font-size:13px; color:var(--muted); margin-bottom:12px; }
+dialog label input { display:block; width:100%; margin-top:4px; }
+dialog .pair { display:flex; gap:10px; } dialog .pair label { flex:1; }
+dialog .btns { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+.none { text-align:center; color:var(--muted); font-size:13px; padding-top:8px; }
+.legend { margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 14px; }
+.legend .row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
+.legend .row:last-child { border-bottom:0; }
+.legend .row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.legend .row .t { font-variant-numeric:tabular-nums; color:var(--muted); }
+@media (max-width:760px) { .cal { grid-template-columns:1fr; } .day { min-height:0; } .dayhead { text-align:left; display:grid; grid-template-columns:1fr auto; align-items:baseline; } .dayhead .tot { grid-column:2; grid-row:1; } .copy { grid-column:1; grid-row:2; justify-self:start; margin:6px 0 0; } .dayhead b { display:inline; margin-left:6px; } }
